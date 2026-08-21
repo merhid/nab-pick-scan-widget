@@ -385,11 +385,45 @@ $('closeOverlay').addEventListener('click', () => {
 // Camera barcode scanning via QuaggaJS (decodes frames itself — works on Android and iPhone,
 // in any browser, unlike the native BarcodeDetector API which barely any phone actually supports).
 let quaggaRunning = false;
+let lastDetectedCode = null;
+let lastDetectedCount = 0;
+
+// Quagga tags every decoded digit with an "error" score (how confident it is that
+// digit is right). Averaging that across the decode is the standard way to catch
+// the garbage misreads Quagga is prone to under real-world camera conditions
+// (motion blur, glare, an angled or partially-framed barcode).
+function isReadReliable(result){
+  const codes = result?.codeResult?.decodedCodes || [];
+  let errorSum = 0, n = 0;
+  codes.forEach(c => { if (typeof c.error === 'number'){ errorSum += c.error; n++; } });
+  const avgError = n ? errorSum / n : 1;
+  return avgError < 0.15;
+}
 
 function onDetected(result){
   const code = result?.codeResult?.code;
+  if(!code) return;
+
+  // Every real code in this order is either a 13-digit EAN (Item/Pack) or a
+  // 14-digit ITF-14 (Inner/Outer Carton) — anything else is Quagga misreading
+  // noise as a barcode, so drop it before it ever reaches handleScan.
+  if(!/^\d{13,14}$/.test(code) || !isReadReliable(result)) return;
+
+  // Require the same valid code on two consecutive frames before accepting it,
+  // so one bad frame can't turn into a wrong pick. At Quagga's scan rate this
+  // costs a fraction of a second, not a noticeable delay.
+  if(code === lastDetectedCode){
+    lastDetectedCount++;
+  } else {
+    lastDetectedCode = code;
+    lastDetectedCount = 1;
+  }
+  if(lastDetectedCount < 2) return;
+
+  lastDetectedCode = null;
+  lastDetectedCount = 0;
   closeCamera();
-  if(code) handleScan(code);
+  handleScan(code);
 }
 
 function openCamera(){
@@ -397,6 +431,8 @@ function openCamera(){
     setStatus('Camera library failed to load (check your internet connection) — use the scan box instead', 'err');
     return;
   }
+  lastDetectedCode = null;
+  lastDetectedCount = 0;
   $('camOverlay').classList.add('show');
   Quagga.init({
     inputStream: {
@@ -424,6 +460,8 @@ function closeCamera(){
     try{ Quagga.offDetected(onDetected); Quagga.stop(); }catch(err){}
     quaggaRunning = false;
   }
+  lastDetectedCode = null;
+  lastDetectedCount = 0;
   $('camOverlay').classList.remove('show');
 }
 
