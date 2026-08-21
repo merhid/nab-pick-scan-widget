@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pick Scan Prototype — SO-23671</title>
+<style>
+  :root{
+    --ink:#1b2430; --sub:#5b6673; --line:#e2e6ea; --bg:#f4f6f8; --card:#ffffff;
+    --green:#1f9d55; --green-bg:#e8f8ee; --amber:#b4780a; --amber-bg:#fdf3e0;
+    --red:#c23b3b; --red-bg:#fdeaea; --blue:#2f6fed; --blue-bg:#eaf1ff;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .wrap{max-width:520px;margin:0 auto;padding:0 0 32px;}
+  header{
+    background:#132033;color:#fff;padding:16px 16px 14px;position:sticky;top:0;z-index:20;
+  }
+  header .title{font-size:15px;font-weight:600;letter-spacing:.2px;}
+  header .sub{font-size:12.5px;color:#aebbd0;margin-top:2px;}
+  .badge{display:inline-block;background:#1f2d45;border:1px solid #2c3f5f;color:#c9d6ea;
+    font-size:11px;padding:2px 8px;border-radius:20px;margin-top:8px;}
+
+  .scan-bar{
+    position:sticky;top:60px;z-index:19;background:#fff;border-bottom:1px solid var(--line);
+    padding:10px 14px 12px;box-shadow:0 2px 6px rgba(20,30,50,.05);
+  }
+  .scan-input-row{display:flex;gap:8px;}
+  #scanInput{
+    flex:1;font-size:16px;padding:12px 12px;border:2px solid var(--blue);border-radius:10px;
+    outline:none;
+  }
+  #scanInput:focus{border-color:var(--green);}
+  #camBtn{
+    flex:0 0 auto;font-size:20px;background:var(--blue-bg);color:var(--blue);border:1px solid #c8d9fb;
+    border-radius:10px;padding:0 14px;cursor:pointer;
+  }
+  .hint{font-size:11.5px;color:var(--sub);margin-top:6px;}
+  .status-line{font-size:13px;margin-top:8px;min-height:18px;font-weight:600;}
+  .status-line.ok{color:var(--green);}
+  .status-line.warn{color:var(--amber);}
+  .status-line.err{color:var(--red);}
+
+  .summary{display:flex;gap:8px;padding:12px 14px 4px;}
+  .summary .tile{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:10px 8px;text-align:center;}
+  .summary .tile .n{font-size:19px;font-weight:700;}
+  .summary .tile .l{font-size:10.5px;color:var(--sub);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;}
+
+  main{padding:6px 14px 0;}
+  .line{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px;
+    transition:box-shadow .15s, border-color .15s;
+  }
+  .line.flash-ok{box-shadow:0 0 0 3px rgba(31,157,85,.35);border-color:var(--green);}
+  .line.flash-warn{box-shadow:0 0 0 3px rgba(180,120,10,.35);border-color:var(--amber);}
+  .line-top{display:flex;justify-content:space-between;gap:10px;}
+  .line-name{font-size:14px;font-weight:600;line-height:1.3;}
+  .line-codes{font-size:11px;color:var(--sub);margin-top:4px;font-family:ui-monospace,Menlo,Consolas,monospace;}
+  .line-codes b{color:var(--ink);}
+  .pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;height:fit-content;}
+  .pill.pending{background:#eef0f3;color:var(--sub);}
+  .pill.partial{background:var(--amber-bg);color:var(--amber);}
+  .pill.done{background:var(--green-bg);color:var(--green);}
+  .pill.over{background:var(--red-bg);color:var(--red);}
+
+  .bar-track{background:#eef0f3;border-radius:6px;height:8px;margin-top:10px;overflow:hidden;}
+  .bar-fill{height:100%;background:var(--green);border-radius:6px;transition:width .2s ease;}
+  .bar-fill.over{background:var(--red);}
+  .line-bottom{display:flex;justify-content:space-between;align-items:center;margin-top:8px;}
+  .qty-txt{font-size:12.5px;color:var(--sub);}
+  .qty-txt b{color:var(--ink);font-size:13.5px;}
+
+  .demo-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .demo-btns button{
+    flex:1 1 calc(50% - 6px);min-width:110px;font-size:11.5px;padding:7px 4px;border-radius:8px;border:1px solid var(--line);
+    background:#fafbfc;color:var(--sub);cursor:pointer;
+  }
+  .demo-btns button:active{background:#eef1f4;}
+
+  .footer-actions{padding:16px 14px 4px;display:flex;gap:8px;}
+  .btn{flex:1;padding:13px;border-radius:10px;border:none;font-size:14.5px;font-weight:700;cursor:pointer;}
+  .btn-complete{background:var(--green);color:#fff;}
+  .btn-complete:disabled{background:#d7dde3;color:#98a2ae;cursor:not-allowed;}
+  .btn-undo{background:#fff;color:var(--red);border:1px solid #f0caca;flex:0 0 110px;}
+
+  .about{margin:18px 14px 0;background:#fff;border:1px dashed var(--line);border-radius:10px;padding:12px 14px;}
+  .about summary{font-size:12.5px;font-weight:600;color:var(--blue);cursor:pointer;}
+  .about .body{font-size:12px;color:var(--sub);margin-top:8px;line-height:1.55;}
+  .about .body code{background:#f1f3f5;padding:1px 5px;border-radius:4px;font-size:11px;}
+
+  .log{margin:14px 14px 0;}
+  .log h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--sub);margin:0 0 6px;}
+  .log-entry{font-size:12px;padding:6px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;}
+  .log-entry .t{color:var(--sub);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;white-space:nowrap;}
+  .log-entry.err-row{color:var(--red);}
+  .log-empty{font-size:12px;color:var(--sub);padding:6px 0;}
+
+  .complete-overlay{
+    position:fixed;inset:0;background:rgba(19,32,51,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;
+  }
+  .complete-overlay.show{display:flex;}
+  .complete-card{background:#fff;border-radius:14px;padding:26px 22px;max-width:360px;text-align:center;}
+  .complete-card .big{font-size:34px;}
+  .complete-card h3{margin:8px 0 4px;font-size:17px;}
+  .complete-card p{font-size:13px;color:var(--sub);margin:0 0 16px;}
+  .complete-card button{background:var(--blue);color:#fff;border:none;padding:11px 22px;border-radius:9px;font-weight:700;cursor:pointer;}
+
+  .cam-overlay{position:fixed;inset:0;background:#000;z-index:70;display:none;}
+  .cam-overlay.show{display:block;}
+  #camViewport{position:absolute;inset:0;overflow:hidden;}
+  #camViewport video, #camViewport canvas{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;}
+  .cam-target{position:absolute;top:50%;left:8%;right:8%;height:90px;transform:translateY(-50%);
+    border:2px solid #4CFF6B;border-radius:10px;pointer-events:none;box-shadow:0 0 0 2000px rgba(0,0,0,.35);}
+  .cam-hint{position:absolute;bottom:36px;left:0;right:0;text-align:center;color:#fff;font-size:13px;opacity:.85;}
+  .cam-cancel{position:absolute;top:16px;right:16px;z-index:5;background:rgba(0,0,0,.6);color:#fff;
+    border:1px solid rgba(255,255,255,.4);padding:9px 16px;border-radius:20px;font-size:13px;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title">SO-23675 · One Stop Food Services</div>
+  <div class="sub">Draft · created as a live test case · real item data</div>
+  <div class="badge">PROTOTYPE — MCB &amp; MHPC-B use your real field values, not yet connected live to Zoho</div>
+</header>
+
+<div class="scan-bar">
+  <div class="scan-input-row">
+    <input id="scanInput" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off"
+           placeholder="Scan or type a code, then Enter" autofocus>
+    <button id="camBtn" title="Scan with camera">📷</button>
+  </div>
+  <div class="hint">Works with a Bluetooth/USB scanner in "keyboard wedge" mode — it just needs to be aimed at this box. 📷 opens your camera to scan (needs camera permission, and a second to load).</div>
+  <div id="statusLine" class="status-line"></div>
+</div>
+
+<div class="wrap">
+  <div class="summary">
+    <div class="tile"><div class="n" id="sumLines">0/0</div><div class="l">Lines done</div></div>
+    <div class="tile"><div class="n" id="sumUnits">0/0</div><div class="l">Units picked</div></div>
+    <div class="tile"><div class="n" id="sumScans">0</div><div class="l">Scans logged</div></div>
+  </div>
+
+  <main id="lineList"></main>
+
+  <div class="footer-actions">
+    <button class="btn btn-undo" id="undoBtn">Undo last</button>
+    <button class="btn btn-complete" id="completeBtn" disabled>Complete pick</button>
+  </div>
+
+  <details class="about">
+    <summary>About this prototype — real data, and one open design question</summary>
+    <div class="body">
+      This is your actual draft <b>SO-23675</b>, and every code/qty below is pulled straight from the
+      <code>EAN</code>, <code>cf_pack_barcode</code>/<code>cf_pack_quantity</code>,
+      <code>cf_inner_carton_tun</code>/<code>cf_inner_carton_qty</code>, and
+      <code>cf_tun</code>/<code>cf_carton_qty</code> fields you've now populated on MCB and MHPC-B.
+      Nothing here is a placeholder anymore for these two items.<br><br>
+      Notice MCB has Item + Pack + Outer Carton (no inner carton set), while MHPC-B has
+      Item + Inner Carton + Outer Carton (no pack set) — exactly the "not every item needs all four
+      levels" case, working correctly with real data.<br><br>
+      <b>Open question:</b> in Zoho, both items sit on <i>two separate order lines</i> each
+      (MCB: 200 + 20, MHPC-B: 48 + 12) — maybe a pricing split, maybe just how the test order was
+      entered. This app merges them into one pick target per item, since that's how picking actually
+      works on the floor. But Zoho tracks <code>quantity_picked</code> per line, not per item — so a
+      real write-back needs a rule for splitting a merged pick back across the underlying lines
+      (simplest: fill the first line to its ordered qty, then spill into the next). Worth confirming
+      whether that's actually how you want it handled, or whether duplicate lines like this shouldn't
+      happen in practice.<br><br>
+      On "Complete pick," a live version would write back to each line's <code>quantity_picked</code>
+      field (which Zoho Inventory already tracks internally — it's just not exposed in the native
+      app's scan-to-pick flow).
+    </div>
+  </details>
+
+  <div class="log">
+    <h4>Scan log</h4>
+    <div id="logList"><div class="log-empty">No scans yet.</div></div>
+  </div>
+</div>
+
+<div class="complete-overlay" id="completeOverlay">
+  <div class="complete-card">
+    <div class="big">✅</div>
+    <h3>Pick complete</h3>
+    <p id="completeMsg">All lines picked. In production this would push quantity_picked back to Zoho and hand the order to packing.</p>
+    <button id="closeOverlay">Close</button>
+  </div>
+</div>
+
+<div class="cam-overlay" id="camOverlay">
+  <div id="camViewport"></div>
+  <div class="cam-target"></div>
+  <div class="cam-hint">Hold a barcode inside the box</div>
+  <button class="cam-cancel" id="camCancel">✕ Cancel</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script>
+// ---- Data: real SO-23675 (ONE STOP FOOD SERVICES, draft), real field values off the two items
+// you've now fully populated (MCB, MHPC-B). Both items appear on TWO order lines each in Zoho
+// (200+20 for MCB, 48+12 for MHPC-B) — merged into one pick target per item below, since that's
+// how a picker experiences it. See "About this prototype" for how that merge would resolve back
+// to individual lines in a real write-back.
+const ORDER = {
+  number: "SO-23675",
+  lines: [
+    { sku:"MCB", name:"Microfibre Cloth Blue 40*40cm", unit:"Each",
+      orderLines:[200,20],
+      levels:[
+        { name:"Item",         field:"EAN",            qty:1,   code:"9327949000368" },
+        { name:"Pack",         field:"cf_pack_barcode", qty:10,  code:"9327949002416" },
+        { name:"Outer Carton", field:"cf_tun",          qty:200, code:"19327949000365" },
+      ] },
+    { sku:"MHPC-B", name:"Metal, powder-coated Handles 25mm x 1.4m — Blue", unit:"Each",
+      orderLines:[48,12],
+      levels:[
+        { name:"Item",         field:"EAN",                qty:1,  code:"9327949001174" },
+        { name:"Inner Carton", field:"cf_inner_carton_tun", qty:12, code:"29327949001178" },
+        { name:"Outer Carton", field:"cf_tun",              qty:24, code:"19327949001171" },
+      ] },
+  ]
+};
+
+const state = {
+  lines: ORDER.lines.map(l => ({...l, ordered: l.orderLines.reduce((a,b)=>a+b,0), picked:0})),
+  log: [],
+  lastScan: null,
+};
+
+const $ = id => document.getElementById(id);
+
+function render(){
+  const list = $('lineList');
+  list.innerHTML = '';
+  state.lines.forEach((l, idx) => {
+    const pct = Math.min(100, Math.round((l.picked / l.ordered) * 100));
+    const over = l.picked > l.ordered;
+    const done = l.picked === l.ordered;
+    const pillClass = over ? 'over' : done ? 'done' : l.picked > 0 ? 'partial' : 'pending';
+    const pillText = over ? 'OVER' : done ? 'Done' : l.picked > 0 ? 'Partial' : 'Pending';
+
+    const codesLine = l.levels.map(lv =>
+      `${lv.name}<span style="opacity:.55">(${lv.field})</span>: <b>${lv.code}</b>${lv.qty>1?` =${lv.qty}`:''}`
+    ).join(' &nbsp;·&nbsp; ');
+
+    const demoBtns = l.levels.map(lv =>
+      `<button data-code="${lv.code}">${lv.name}${lv.qty>1?` (+${lv.qty})`:''}</button>`
+    ).join('');
+
+    const div = document.createElement('div');
+    div.className = 'line';
+    div.id = 'line-' + idx;
+    div.innerHTML = `
+      <div class="line-top">
+        <div>
+          <div class="line-name">${l.name}${l.orderLines.length>1?` <span style="font-weight:400;color:var(--sub);font-size:11.5px;">(${l.orderLines.length} order lines: ${l.orderLines.join(' + ')})</span>`:''}</div>
+          <div class="line-codes">${codesLine}</div>
+        </div>
+        <div class="pill ${pillClass}">${pillText}</div>
+      </div>
+      <div class="bar-track"><div class="bar-fill ${over?'over':''}" style="width:${Math.min(pct,100)}%"></div></div>
+      <div class="line-bottom">
+        <div class="qty-txt"><b>${l.picked}</b> / ${l.ordered} ${l.unit.toLowerCase()}${l.ordered>1?'s':''} picked</div>
+      </div>
+      <div class="demo-btns">${demoBtns}</div>
+    `;
+    list.appendChild(div);
+  });
+  list.querySelectorAll('button[data-code]').forEach(btn=>{
+    btn.addEventListener('click', () => handleScan(btn.getAttribute('data-code')));
+  });
+
+  const doneLines = state.lines.filter(l => l.picked === l.ordered).length;
+  const totalOrdered = state.lines.reduce((s,l)=>s+l.ordered,0);
+  const totalPicked = state.lines.reduce((s,l)=>s+Math.min(l.picked,l.ordered),0);
+  $('sumLines').textContent = `${doneLines}/${state.lines.length}`;
+  $('sumUnits').textContent = `${totalPicked}/${totalOrdered}`;
+  $('sumScans').textContent = state.log.length;
+  $('completeBtn').disabled = !(doneLines === state.lines.length);
+
+  const logList = $('logList');
+  if(state.log.length === 0){
+    logList.innerHTML = '<div class="log-empty">No scans yet.</div>';
+  } else {
+    logList.innerHTML = state.log.slice().reverse().map(e => `
+      <div class="log-entry ${e.error?'err-row':''}">
+        <span>${e.text}</span>
+        <span class="t">${e.time}</span>
+      </div>
+    `).join('');
+  }
+}
+
+function setStatus(msg, cls){
+  const el = $('statusLine');
+  el.textContent = msg;
+  el.className = 'status-line ' + (cls||'');
+}
+
+function flashLine(idx, cls){
+  const el = $('line-'+idx);
+  if(!el) return;
+  el.classList.add(cls);
+  setTimeout(()=>el.classList.remove(cls), 700);
+}
+
+function nowStr(){
+  const d = new Date();
+  return d.toTimeString().slice(0,8);
+}
+
+function handleScan(code){
+  code = (code||'').trim();
+  if(!code) return;
+
+  // Search every level of every line for a matching code — works for however many
+  // packaging levels a given item has (Item / Pack / Inner Carton / Outer Carton, or fewer).
+  let idx = -1, matchedLevel = null;
+  for(let i=0;i<state.lines.length;i++){
+    const lvl = state.lines[i].levels.find(lv => lv.code.toLowerCase() === code.toLowerCase());
+    if(lvl){ idx = i; matchedLevel = lvl; break; }
+  }
+
+  if(idx === -1){
+    setStatus(`✗ "${code}" doesn't match any item, pack, or carton level on this order`, 'err');
+    state.log.push({ text:`✗ Unrecognised: ${code}`, time: nowStr(), error:true });
+    state.lastScan = null;
+    render();
+    return;
+  }
+
+  const line = state.lines[idx];
+  const addQty = matchedLevel.qty;
+  line.picked += addQty;
+
+  state.lastScan = { idx, addQty };
+  state.log.push({
+    text: `${matchedLevel.name} scan (${matchedLevel.field}) → ${line.sku} +${addQty}`,
+    time: nowStr(),
+    error:false
+  });
+
+  if(line.picked > line.ordered){
+    setStatus(`⚠ ${line.sku} now at ${line.picked}/${line.ordered} — over the ordered qty`, 'warn');
+    flashLine(idx, 'flash-warn');
+  } else {
+    setStatus(`✓ ${line.name} — ${line.picked}/${line.ordered} ${line.unit.toLowerCase()}${line.ordered>1?'s':''}`, 'ok');
+    flashLine(idx, 'flash-ok');
+  }
+
+  render();
+}
+
+$('scanInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){
+    const v = e.target.value;
+    e.target.value = '';
+    handleScan(v);
+  }
+});
+
+$('undoBtn').addEventListener('click', () => {
+  if(!state.lastScan){ setStatus('Nothing to undo', 'warn'); return; }
+  const { idx, addQty } = state.lastScan;
+  state.lines[idx].picked = Math.max(0, state.lines[idx].picked - addQty);
+  state.log.push({ text:`↺ Undo on ${state.lines[idx].sku} (-${addQty})`, time: nowStr(), error:false });
+  state.lastScan = null;
+  setStatus('Last scan undone', 'warn');
+  render();
+});
+
+$('completeBtn').addEventListener('click', () => {
+  $('completeOverlay').classList.add('show');
+});
+$('closeOverlay').addEventListener('click', () => {
+  $('completeOverlay').classList.remove('show');
+});
+
+// Camera barcode scanning via QuaggaJS (decodes frames itself — works on Android and iPhone,
+// in any browser, unlike the native BarcodeDetector API which barely any phone actually supports).
+let quaggaRunning = false;
+
+function onDetected(result){
+  const code = result?.codeResult?.code;
+  closeCamera();
+  if(code) handleScan(code);
+}
+
+function openCamera(){
+  if(typeof Quagga === 'undefined'){
+    setStatus('Camera library failed to load (check your internet connection) — use the scan box instead', 'err');
+    return;
+  }
+  $('camOverlay').classList.add('show');
+  Quagga.init({
+    inputStream: {
+      type: 'LiveStream',
+      target: document.querySelector('#camViewport'),
+      constraints: { facingMode: 'environment' },
+    },
+    decoder: { readers: ['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader','upc_e_reader'] },
+    locate: true,
+  }, function(err){
+    if(err){
+      setStatus('Camera unavailable: ' + err.message, 'err');
+      closeCamera();
+      return;
+    }
+    Quagga.start();
+    quaggaRunning = true;
+  });
+  Quagga.onDetected(onDetected);
+}
+
+function closeCamera(){
+  if(quaggaRunning){
+    try{ Quagga.offDetected(onDetected); Quagga.stop(); }catch(err){}
+    quaggaRunning = false;
+  }
+  $('camOverlay').classList.remove('show');
+}
+
+$('camBtn').addEventListener('click', openCamera);
+$('camCancel').addEventListener('click', closeCamera);
+
+render();
+$('scanInput').focus();
+</script>
+</body>
+</html>
